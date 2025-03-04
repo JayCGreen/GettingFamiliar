@@ -17,12 +17,62 @@ public class EncounterMenu : MonoBehaviour
     int selectedCommandType;
     Command selectedCommand;
     List<Unit> selectedTargets;
-    //KeyCode[] arrows = {KeyCode.LeftArrow,KeyCode.UpArrow,KeyCode.RightArrow,KeyCode.DownArrow};
+
+    //for keyboard nav
+    List<KeyCode> arrows = new List<KeyCode>{KeyCode.LeftArrow,KeyCode.UpArrow,KeyCode.RightArrow,KeyCode.DownArrow};
+    KeyCode confirmButton;
+    KeyCode backButton;
+    int highlighted = 0;
+    List<Command> cmdSubmenu;
+    List<Unit> targetSubmenu;
+    bool vertical;
 
     // Update is called once per frame
+    void Update(){
+        if (currMenu > 0){
+            if (Input.GetKeyDown(confirmButton)){
+            switch (currMenu){
+                case 1:
+                    SetCommand(cmdSubmenu[highlighted]);
+                    break;
+                case 2:
+                    SetTarget(targetSubmenu[highlighted]);
+                    break;
+                }
+                highlighted = 0;
+            }
+            else if (Input.GetKeyDown(backButton)){
+                //if not in the first menu, this button will go back
+                if (currMenu > 0){
+                    highlighted = 0;
+                    SwitchSubmenu(forward: false);
+                }
+            } 
+            else{
+                navigateMenu();
+            }
+        } else{
+          //first menu navigation
+          int index = arrows.FindIndex(0, arrows.Count, delegate(KeyCode keycode){
+            return Input.GetKeyDown(keycode);
+          });
+          if(index >= 0){
+            SetCommandType(index);
+          }
+        }
+    }
 
     public void SetCommandType(int type){
         selectedCommandType = type;
+        if (type%2 == 0){
+            vertical = true;
+        }
+        else{
+            //Menu will be displayed horizontally instead
+            vertical = false;
+        }
+        confirmButton = arrows[type];
+        backButton = arrows[type + 2 % 4];
         SwitchSubmenu(true);
     }
 
@@ -31,9 +81,13 @@ public class EncounterMenu : MonoBehaviour
         SwitchSubmenu(true);
     }
 
-    public void Action(Unit selectedUnit){
+    public void SetTarget(Unit selectedUnit){
         selectedTargets = new List<Unit>{selectedUnit};
         selectedCommand.SetTargets(selectedTargets);
+        Action();
+    }
+
+    public void Action(){
         selectedCommand.action();
         unit.isActing = false;
         Debug.Log(unit + " used " + selectedCommand + " on " + string.Join(", ", selectedTargets));
@@ -63,7 +117,7 @@ public class EncounterMenu : MonoBehaviour
     public void GoToSubmenu(int type){
         //instantiate the menu here
         //so we'd pass in the command type likely and use that to filter
-        List<Command> cmdSubmenu = unit.cmdList.FindAll(
+        cmdSubmenu = unit.cmdList.FindAll(
             delegate(Command command){
                 return (command.commandType == (CommandType)type);
             }
@@ -81,19 +135,14 @@ public class EncounterMenu : MonoBehaviour
             commandButton.transform.SetParent(submenus[currMenu].transform, false);
             count++;
         }
-        /*
-        menu.GetComponent<EncounterSubMenu>().ConfirmButton = (int)type;
-        menu.GetComponent<EncounterSubMenu>().BackButton = ((int)type + 2) % 4;
-        menu.transform.SetParent(this.transform.parent);
-        */
     }
 
     public void GoToTargetMenu(Command command){
-        List<Unit> pTargets = unit.GetValidTargets(command, ally, enemy);
+        targetSubmenu = unit.GetValidTargets(command, ally, enemy);
         int count = 0;
-        foreach (Unit target in pTargets){
+        foreach (Unit target in targetSubmenu){
             GameObject targetButton = Instantiate(cmdButton, offset(count), Quaternion.identity);
-            targetButton.GetComponentInChildren<Button>().onClick.AddListener(() => Action(target));
+            targetButton.GetComponentInChildren<Button>().onClick.AddListener(() => SetTarget(target));
             targetButton.GetComponentInChildren<Text>().text = "" + target;
             targetButton.transform.SetParent(submenus[currMenu].transform, false);
             count++;
@@ -111,4 +160,38 @@ public class EncounterMenu : MonoBehaviour
             return new Vector2(-160 + num*xOffset, 0);
         }
     }
+
+    void navigateMenu(){
+        int count = currMenu == 1 ? cmdSubmenu.Count : targetSubmenu.Count;
+        if(vertical){
+            //use up and down keys to navigate the menu
+            if(Input.GetKeyDown(KeyCode.UpArrow)){
+                highlighted = mod(highlighted + 1, count);
+                Debug.Log("highlight is now " + highlighted);
+
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow)){
+                highlighted = mod(highlighted - 1, count);
+                Debug.Log("highlight is now " + highlighted);
+            }
+        }else {
+            //use left and right kets to navigate
+            if(Input.GetKeyDown(KeyCode.RightArrow)){
+                highlighted = mod(highlighted + 1, count);
+                Debug.Log("highlight is now " + highlighted);
+
+            }
+            else if (Input.GetKeyDown(KeyCode.LeftArrow)){
+                highlighted = mod(highlighted - 1, count);
+                Debug.Log("highlight is now " + highlighted);
+            }
+        }
+    }
+
+    int mod(int number, int modulus){
+        int div = number / modulus;
+        if (number < 0) div = div - 1;
+        return (number - (modulus)*div);
+    }
+
 }
